@@ -1,17 +1,26 @@
-#helper
-#Load Animations
-run = wandb.init(entity=WANDB_ENTITY,
-                  project=WANDB_PROJECT_NAME,
-                  job_type="animation_retrieval",
-                  name=f"fetch_animations",
-                  settings=wandb.Settings(silent=True)
-                  )
+import wandb
+import json
+import pandas as pd
+from datasets import Dataset
 
-# Download Animations
-animate_artifact = run.use_artifact('wandb-registry-FT-Workshop-Collatoral/Animation-Scripts:v1', type='code')
-animate_dir = animate_artifact.download()
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    TrainingArguments,
+    Trainer,
+    DataCollatorForLanguageModeling,
+    BitsAndBytesConfig,
+    EarlyStoppingCallback
+)
 
-run.finish()
+from peft import (
+    LoraConfig,
+    get_peft_model,
+    prepare_model_for_kbit_training,
+    PeftModel,
+)
+
+from huggingface_hub import login
 
 #helper
 # Load and validate the JSONL dataset
@@ -92,7 +101,7 @@ def load_and_prepare_dataset(artifact_dir, filename, dataset_type="dataset"):
 import shutil
 from pathlib import Path
 
-def download_all_models():
+def download_all_models(entity, project):
     models = {
         "falcon-rw-1b": "v0",
         "TinyLlama": "v1",
@@ -102,8 +111,8 @@ def download_all_models():
         print(f"\n⬇️ Downloading {model_name} (version {version}) from Weights & Biases...")
 
         run = wandb.init(
-            entity=WANDB_ENTITY,
-            project=WANDB_PROJECT_NAME,
+            entity=entity,
+            project=project,
             job_type="model_retrieval",
             name=f"fetch_{model_name}_model"
         )
@@ -125,7 +134,10 @@ def download_all_models():
         print(f"✅ Model saved to: {local_path}")
         print(f"✅ Model downloaded successfully!")
 
-download_all_models()
+def get_models_from_wandb(entity, project):
+    download_all_models(entity, project)
+    model, tokenizer, model_name = load_model_and_tokenizer()
+    return model, tokenizer, model_name
 
 #helper
 def select_model():
@@ -139,11 +151,10 @@ def select_model():
         "1": ("falcon-rw-1b", "v0"),
         "2": ("TinyLlama", "v1"),  # Changed to v2 to match actual download
     }
-
     print("\nAvailable Models:")
     print("1. Falcon RW 1B")
     print("2. TinyLlama 1B")
-
+    
     while True:
         choice = input("\nSelect a model (1-2): ").strip()
         if choice in models:
@@ -210,15 +221,15 @@ def load_model_and_tokenizer():
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
     print("✅ Model loaded with QLoRA successfully!")
-    %run {animate_dir}/celebrate_model.py
+    #run {animate_dir}/celebrate_model.py
     celebrate_model(model.base_model.model.__class__.__name__)
     return model, tokenizer, model_name
 
 #helper
 # Set pad token and pad token ID if missing (important for consistent model behavior)
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = tokenizer.eos_token
-    model.config.pad_token_id = model.config.eos_token_id
+#if tokenizer.pad_token is None:
+#    tokenizer.pad_token = tokenizer.eos_token
+#    model.config.pad_token_id = model.config.eos_token_id
 
 # Function to tokenize input prompts for training
 def tokenize_function(examples):

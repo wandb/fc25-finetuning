@@ -1,9 +1,0 @@
-transformers 
-datasets 
-accelerate 
-wandb 
-weave
-trl 
-huggingface_hub
-bitsandbytes 
-peft
