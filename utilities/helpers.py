@@ -22,6 +22,7 @@ from peft import (
 )
 
 from huggingface_hub import login
+import os
 
 #helper
 # Load and validate the JSONL dataset
@@ -102,45 +103,6 @@ def load_and_prepare_dataset(artifact_dir, filename, dataset_type="dataset"):
 import shutil
 from pathlib import Path
 
-def download_all_models(entity, project):
-    models = {
-        "falcon-rw-1b": "v0",
-        "TinyLlama": "v1",
-    }
-
-    for model_name, version in models.items():
-        print(f"\n⬇️ Downloading {model_name} (version {version}) from Weights & Biases...")
-
-        run = wandb.init(
-            entity=entity,
-            project=project,
-            job_type="model_retrieval",
-            name=f"fetch_{model_name}_model"
-        )
-
-        artifact = run.use_artifact(
-            f'wandb-registry-model/FC_FT_Workshop_Models:{version}', type='model'
-        )
-        downloaded_dir = artifact.download()
-        run.finish()
-
-        local_path = Path(f"./models/{model_name}_{version}")
-
-        # Clear previous directory if exists
-        if local_path.exists():
-            shutil.rmtree(local_path)
-
-        shutil.move(downloaded_dir, local_path)
-
-        print(f"✅ Model saved to: {local_path}")
-        print(f"✅ Model downloaded successfully!")
-
-def get_models_from_wandb(entity, project):
-    download_all_models(entity, project)
-    model, tokenizer, model_name = load_model_and_tokenizer()
-    return model, tokenizer, model_name
-
-#helper
 def select_model():
     """
     Display a menu of available models and let the user select one.
@@ -164,14 +126,51 @@ def select_model():
             return model_name, version
         print("Invalid choice. Please select 1 or 2.")
 
-def load_model_and_tokenizer():
-    """
-    Load the selected model and tokenizer from local cache with QLoRA configuration.
 
-    Returns:
-        tuple: (model, tokenizer, model_name)
+def download_model(entity, project, model_name, version):
+    """
+    Downloads a specific model from W&B given its name and version.
+    """
+    print(f"\n⬇️ Downloading {model_name} (version {version}) from Weights & Biases...")
+
+    run = wandb.init(
+        entity=entity,
+        project=project,
+        job_type="model_retrieval",
+        name=f"fetch_{model_name}_model"
+    )
+
+    artifact = run.use_artifact(
+        f'wandb-registry-model/FC_FT_Workshop_Models:{version}', type='model'
+    )
+    downloaded_dir = artifact.download()
+    run.finish()
+
+    local_path = Path(f"./models/{model_name}_{version}")
+    
+    if local_path.exists():
+        shutil.rmtree(local_path)
+
+    shutil.move(downloaded_dir, local_path)
+
+    print(f"✅ Model saved to: {local_path}")
+    print(f"✅ Model downloaded successfully!")
+
+def get_model_from_wandb(entity, project):
+    """
+    Select and download one model from W&B, then load it.
     """
     model_name, version = select_model()
+    download_model(entity, project, model_name, version)
+    model, tokenizer, model_name = load_model_and_tokenizer(model_name, version)
+    return model, tokenizer, model_name
+
+# Updated load_model_and_tokenizer to accept model_name and version
+def load_model_and_tokenizer(model_name, version):
+    """
+    Load model and tokenizer for selected model/version.
+    """
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     model_dir = Path(f"./models/{model_name}_{version}")
 
     print(f"\n📦 Loading model from: {model_dir}")
@@ -200,14 +199,15 @@ def load_model_and_tokenizer():
         trust_remote_code=True
     )
 
-    # Prepare model for k-bit training
     model = prepare_model_for_kbit_training(model)
 
+    # Target modules
     if model_name == "falcon-rw-1b":
         targets = ["query_key_value", "dense", "dense_h_to_4h", "dense_4h_to_h"]
-
-    if model_name == "TinyLlama":
+    elif model_name == "TinyLlama":
         targets = ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj']
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
 
     # Step 4: Configure LoRA
     lora_config = LoraConfig(
@@ -221,16 +221,10 @@ def load_model_and_tokenizer():
 
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
-    print("✅ Model loaded with QLoRA successfully!")
-    #run {animate_dir}/celebrate_model.py
-    #celebrate_model(model.base_model.model.__class__.__name__)
-    return model, tokenizer, model_name
 
-#helper
-# Set pad token and pad token ID if missing (important for consistent model behavior)
-#if tokenizer.pad_token is None:
-#    tokenizer.pad_token = tokenizer.eos_token
-#    model.config.pad_token_id = model.config.eos_token_id
+    print("✅ Model loaded with QLoRA successfully!")
+
+    return model, tokenizer, model_name
 
 # Function to tokenize input prompts for training
 def get_tokenize_function(tokenizer):
