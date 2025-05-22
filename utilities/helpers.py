@@ -2,6 +2,7 @@ import wandb
 import json
 import pandas as pd
 from datasets import Dataset
+import torch
 
 from transformers import (
     AutoTokenizer,
@@ -222,7 +223,7 @@ def load_model_and_tokenizer():
     model.print_trainable_parameters()
     print("✅ Model loaded with QLoRA successfully!")
     #run {animate_dir}/celebrate_model.py
-    celebrate_model(model.base_model.model.__class__.__name__)
+    #celebrate_model(model.base_model.model.__class__.__name__)
     return model, tokenizer, model_name
 
 #helper
@@ -232,24 +233,17 @@ def load_model_and_tokenizer():
 #    model.config.pad_token_id = model.config.eos_token_id
 
 # Function to tokenize input prompts for training
-def tokenize_function(examples):
-    """
-    Tokenize the text prompts with padding and truncation.
-
-    Args:
-        examples (dict): A batch of examples with 'text' field.
-
-    Returns:
-        dict: Tokenized outputs (input_ids, attention_mask, etc.)
-    """
-    tokenized = tokenizer(
-        examples['text'],
-        padding='max_length',
-        truncation=True,
-        max_length=512,
-    )
-    tokenized["labels"] = tokenized["input_ids"].copy()
-    return tokenized
+def get_tokenize_function(tokenizer):
+    def tokenize_function(examples):
+        tokenized = tokenizer(
+            examples['text'],
+            padding='max_length',
+            truncation=True,
+            max_length=512,
+        )
+        tokenized["labels"] = tokenized["input_ids"].copy()
+        return tokenized
+    return tokenize_function
 
 # Will be adding a few metric functions users can use to test out out the model - TODO: Cleanup , either remove or add addititions functions - not currently used
 def compute_perpexity(eval_preds):
@@ -281,25 +275,27 @@ def compute_perpexity(eval_preds):
     perplexity = math.exp(loss.item()) if loss.item() < 100 else float("inf")
     return {"perplexity": perplexity}
 
-def tokenized_train_test(training_dataset, split):
-  # Apply the tokenizer to the datasets
+def tokenized_train_test(training_dataset, split, tokenizer):
     split_dataset = training_dataset.train_test_split(test_size=split)
     train_dataset = split_dataset["train"]
     eval_dataset = split_dataset["test"]
+
+    # Create tokenizer function with tokenizer bound
+    tokenize = get_tokenize_function(tokenizer)
+
     train_dataset = train_dataset.map(
-        tokenize_function,
+        tokenize,
         batched=True,
         remove_columns=train_dataset.column_names,
     )
 
     eval_dataset = eval_dataset.map(
-        tokenize_function,
+        tokenize,
         batched=True,
         remove_columns=eval_dataset.column_names,
     )
 
     print("✅ Tokenization applied to Training & Evaluation Datasets successfully!")
-
     return train_dataset, eval_dataset
 
 
