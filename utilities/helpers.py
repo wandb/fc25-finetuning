@@ -293,7 +293,6 @@ def tokenized_train_test(training_dataset, split, tokenizer):
     return train_dataset, eval_dataset
 
 
-#helper
 def load_finetuned_model(adapter_dir, base_model_dir):
 
     tokenizer = AutoTokenizer.from_pretrained(adapter_dir, use_fast=True)
@@ -316,4 +315,5 @@ def load_finetuned_model(adapter_dir, base_model_dir):
         )
     # Load fine-tuned adapter
     model = PeftModel.from_pretrained(base_model, adapter_dir)
+    print("✅ Loaded model with finetuned adapter successfully!")
     return tokenizer, model
