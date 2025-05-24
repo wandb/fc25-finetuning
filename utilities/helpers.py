@@ -24,6 +24,8 @@ from peft import (
 from huggingface_hub import login
 import os
 
+from IPython.display import display, HTML
+
 #helper
 # Load and validate the JSONL dataset
 def load_jsonl_dataset(file_path):
@@ -163,6 +165,7 @@ def get_model_from_wandb(entity, project):
     model_name, version = select_model()
     download_model(entity, project, model_name, version)
     model, tokenizer, model_name = load_model_and_tokenizer(model_name, version)
+    celebrate_model(model.base_model.model.__class__.__name__)
     return model, tokenizer, model_name
 
 # Updated load_model_and_tokenizer to accept model_name and version
@@ -317,3 +320,285 @@ def load_finetuned_model(adapter_dir, base_model_dir):
     # Load fine-tuned adapter
     model = PeftModel.from_pretrained(base_model, adapter_dir)
     return tokenizer, model
+
+#animation
+def celebrate_model(model_class):
+    html = f"""
+    <div id="celebration" style="display: none; text-align: center; padding: 50px; font-family: 'Segoe UI', sans-serif;">
+        <div style="
+            font-size: 20px;
+            color: #999;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        ">
+            Mission Update
+        </div>
+        <div style="
+            font-size: 40px;
+            font-weight: bold;
+            color: #fac13c;
+            margin-bottom: 20px;
+        ">
+            Your model is ready for staging 🚀
+        </div>
+        <div style="
+            font-size: 28px;
+            color: #ffffff;
+            background: #1a1a1a;
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px #fac13c;
+        ">
+            {model_class}
+        </div>
+    </div>
+
+    <script>
+    setTimeout(function() {{
+        document.getElementById('celebration').style.display = 'block';
+    }}, 1000);
+    </script>
+    """
+    display(HTML(html))
+
+#animation
+def launch_sequence(training_args=None, num_columns=2):
+    """
+    Displays an epic launch animation.
+    Optionally shows training arguments inside the mission control panel.
+    """
+    # Base HTML template with a placeholder for dynamic Training Args
+    HTML_TEMPLATE = r"""
+    <div id="launch-container" style="position: relative; width: 100%; height: 100vh; background: radial-gradient(ellipse at bottom, #000 0%, #020111 100%); overflow: auto; font-family: 'Comic Sans MS', cursive, sans-serif; display: flex; align-items: center; justify-content: center;">
+
+    <style>
+      /* --- Same CSS as before --- */
+      #launch-container .stars {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: 1;
+      }
+      #launch-container .star {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        background: white;
+        border-radius: 50%;
+        opacity: 0.7;
+        animation: moveStar 5s linear infinite;
+      }
+      @keyframes moveStar {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(600px); }
+      }
+      #launch-container .countdown {
+        position: absolute;
+        width: 100%;
+        top: 30%;
+        font-size: 4em;
+        text-align: center;
+        z-index: 2;
+        color: #fff;
+        text-shadow: 0 0 10px #0ff;
+      }
+      #launch-container .rocket {
+          position: absolute; /* <-- must stay absolute */
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          font-size: 80px;
+          z-index: 3;
+          transition: transform 3s ease-out, bottom 3s ease-out;
+      }
+      #launch-container .flame {
+          position: absolute; /* <-- stays absolute INSIDE rocket */
+          top: 100%; /* start exactly under the rocket */
+          left: 50%;
+          transform: translateX(-50%) translateY(0);
+          width: 20px;
+          height: 40px;
+          background: radial-gradient(circle, orange 0%, red 100%);
+          border-radius: 50%;
+          animation: flameFlicker 0.2s infinite alternate;
+          opacity: 0;
+          z-index: 1;
+      }
+      @keyframes flameFlicker {
+        0% { transform: translateX(-50%) scaleY(2); }
+        100% { transform: translateX(-50%) scaleY(1.5); }
+      }
+      #launch-container #control-panel {
+        display: none;
+        position: relative;
+        background: rgba(0,0,0,0.8);
+        padding: 30px;
+        border: 2px solid #0ff;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 800px;
+        z-index: 5;
+        text-align: center;
+        box-sizing: border-box;
+        overflow: auto;
+        margin: 0 auto;
+        color: white;
+      }
+      #launch-container #control-panel table {
+        margin: 10px auto 20px auto;
+      }
+      #launch-container #control-panel h3 {
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 1.8em;
+        text-shadow: 0 0 5px #0ff;
+      }
+      #launch-container .execute-text {
+        margin: 20px 0;
+        font-size: 1.2em;
+        color: #0ff;
+      }
+      #launch-container .confetti {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background: hsl(var(--hue), 70%, 60%);
+        animation: fall 3s ease-out forwards;
+        z-index: 4;
+      }
+      @keyframes fall {
+        to {
+          transform: translateY(600px) rotate(720deg);
+          opacity: 0;
+        }
+      }
+    </style>
+
+    <div class="stars" id="stars"></div>
+    <div class="countdown" id="countdown">Preparing...</div>
+    <div class="rocket" id="rocket">
+        🛸
+        <div class="flame" id="flame"></div>
+    </div>
+
+
+    <div id="control-panel">
+      <h3>🚀 Fine-Tuning Mission Control</h3>
+      <!--ARGS_PLACEHOLDER-->
+      <div class="execute-text">Fly Me To The Moon</div>
+    </div>
+
+    <script>
+    // --- Main Launch Animation Setup ---
+    (function() {
+      const container = document.getElementById('launch-container');
+      const stars = document.getElementById('stars');
+      const countdownEl = document.getElementById('countdown');
+      const rocket = document.getElementById('rocket');
+      const flame = document.getElementById('flame');
+      const panel = document.getElementById('control-panel');
+
+      // Create stars
+      for (let i = 0; i < 150; i++) {
+        let star = document.createElement('div');
+        star.className = 'star';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.animationDuration = (2 + Math.random() * 3) + 's';
+        stars.appendChild(star);
+      }
+
+      // Countdown and launch
+      let countdown = 3;
+      countdownEl.innerText = countdown;
+      const interval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          countdownEl.innerText = countdown;
+        } else if (countdown === 0) {
+          countdownEl.innerText = "Liftoff!";
+          rocket.style.bottom = '600px';
+          rocket.style.transform = 'translateX(-50%) translateY(-200px)';
+          flame.style.opacity = 1;
+          setTimeout(() => {
+            rocket.style.display = 'none';
+            flame.style.display = 'none';
+            countdownEl.style.display = 'none';
+            panel.style.display = 'block';
+            releaseConfetti();
+          }, 3000);
+          clearInterval(interval);
+        }
+      }, 1000);
+
+      // Confetti
+      function releaseConfetti() {
+        for (let i = 0; i < 50; i++) {
+          let c = document.createElement('div');
+          c.className = 'confetti';
+          c.style.left = Math.random() * 100 + '%';
+          c.style.top = '-10px';
+          c.style.setProperty('--hue', Math.random() * 360);
+          container.appendChild(c);
+          setTimeout(() => c.remove(), 3000);
+        }
+      }
+    })();
+    </script>
+
+
+    </div>
+    """
+
+    args_html = ""
+    if training_args:
+        # Create a default instance with just required params
+        default_args = TrainingArguments(output_dir="./results")
+        
+        # Find only the arguments that differ from defaults
+        changed_args = {}
+        for k, v in vars(training_args).items():
+            # Only include if it's different from the default
+            if k in vars(default_args) and v != getattr(default_args, k):
+                changed_args[k] = v
+        
+        # Now build HTML from the changed arguments
+        items = []
+        for key, value in changed_args.items():
+            if isinstance(value, bool):
+                value = "✅" if value else "❌"
+            items.append(f"<strong>{key}:</strong> {value}")
+
+        # Pad the list so it divides evenly into columns
+        while len(items) % num_columns != 0:
+            items.append("")  # empty cell
+
+        # Split into rows
+        rows = [items[i:i+num_columns] for i in range(0, len(items), num_columns)]
+
+        # Build the table
+        args_html = "<table style='width:100%; text-align:left; border-collapse:separate; border-spacing: 10px;'>"
+        for row in rows:
+            args_html += "<tr>"
+            for cell in row:
+                args_html += f"<td style='vertical-align:top; padding: 4px 12px;'>{cell}</td>"
+            args_html += "</tr>"
+        args_html += "</table>"
+    else:
+        args_html = "<div>No mission parameters provided.</div>"
+
+    final_html = HTML_TEMPLATE.replace("<!--ARGS_PLACEHOLDER-->", args_html)
+    display(HTML(final_html))
+
+def split_args_into_columns(args_list, num_columns=2):
+    # Split the list into num_columns nearly equal parts
+    avg = len(args_list) // num_columns
+    columns = []
+    for i in range(num_columns):
+        start = i * avg
+        # Last column takes the remainder
+        end = (i + 1) * avg if i < num_columns - 1 else len(args_list)
+        columns.append(args_list[start:end])
+    return columns
