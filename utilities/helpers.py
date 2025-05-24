@@ -242,36 +242,6 @@ def get_tokenize_function(tokenizer):
         return tokenized
     return tokenize_function
 
-# Will be adding a few metric functions users can use to test out out the model - TODO: Cleanup , either remove or add addititions functions - not currently used
-def compute_perpexity(eval_preds):
-    """
-    Compute perplexity metric from model evaluation logits.
-
-    Args:
-        eval_preds (tuple): Tuple of (logits, labels) from evaluation step.
-
-    Returns:
-        dict: Dictionary containing 'perplexity' score.
-    """
-    logits, labels = eval_preds
-    if not isinstance(logits, torch.Tensor):
-        logits = torch.tensor(logits)
-    if not isinstance(labels, torch.Tensor):
-        labels = torch.tensor(labels)
-
-    # Shift logits and labels for causal language modeling
-    shift_logits = logits[:, :-1, :].contiguous()
-    shift_labels = labels[:, 1:].contiguous()
-
-    # Compute cross-entropy loss
-    loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100)
-    loss = loss_fct(
-        shift_logits.view(-1, shift_logits.size(-1)),
-        shift_labels.view(-1)
-    )
-    perplexity = math.exp(loss.item()) if loss.item() < 100 else float("inf")
-    return {"perplexity": perplexity}
-
 def tokenized_train_test(training_dataset, split, tokenizer):
     split_dataset = training_dataset.train_test_split(test_size=split)
     train_dataset = split_dataset["train"]
