@@ -162,8 +162,8 @@ def get_model_from_wandb(entity, project):
     """
     model_name, version = select_model()
     download_model(entity, project, model_name, version)
-    model, tokenizer, model_name = load_model_and_tokenizer(model_name, version)
-    return model, tokenizer, model_name
+    return model_name, version
+
 
 # Updated load_model_and_tokenizer to accept model_name and version
 def load_model_and_tokenizer(model_name, version):
@@ -196,7 +196,7 @@ def load_model_and_tokenizer(model_name, version):
         model_dir,
         quantization_config=bnb_config,
         device_map="auto",
-        trust_remote_code=True
+        trust_remote_code=True, 
     )
 
     model = prepare_model_for_kbit_training(model)
