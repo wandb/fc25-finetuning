@@ -4,6 +4,9 @@ import pandas as pd
 from datasets import Dataset
 import torch
 
+import boto3
+import os
+
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
@@ -220,6 +223,10 @@ def load_model_and_tokenizer(model_name, version):
     )
 
     model = get_peft_model(model, lora_config)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        model.config.pad_token_id = model.config.eos_token_id    
+
     model.print_trainable_parameters()
 
     print("✅ Model loaded with QLoRA successfully!")
@@ -270,6 +277,7 @@ def compute_perpexity(eval_preds):
     return {"perplexity": perplexity}
 
 def tokenized_train_test(training_dataset, split, tokenizer):
+
     split_dataset = training_dataset.train_test_split(test_size=split)
     train_dataset = split_dataset["train"]
     eval_dataset = split_dataset["test"]
@@ -317,3 +325,15 @@ def load_finetuned_model(adapter_dir, base_model_dir):
     model = PeftModel.from_pretrained(base_model, adapter_dir)
     print("✅ Loaded model with finetuned adapter successfully!")
     return tokenizer, model
+
+
+def bedrock_access():
+    session = boto3.Session()
+    credentials = session.get_credentials().get_frozen_credentials()
+    
+    os.environ["AWS_ACCESS_KEY_ID"] = credentials.access_key
+    os.environ["AWS_SECRET_ACCESS_KEY"] = credentials.secret_key
+    os.environ["AWS_SESSION_TOKEN"] = credentials.token  # Important for temp credentials!
+    os.environ["AWS_REGION"] = session.region_name or "us-west-2"
+    
+    print("✅ AWS credentials and region set in environment variables.")
