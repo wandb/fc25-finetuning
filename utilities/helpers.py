@@ -236,11 +236,14 @@ def load_model_and_tokenizer(model_name, version):
 # Function to tokenize input prompts for training
 def get_tokenize_function(tokenizer):
     def tokenize_function(examples):
+
+        texts_with_eos = [text + tokenizer.eos_token for text in examples["text"]]
+
         tokenized = tokenizer(
             examples['text'],
             padding='max_length',
             truncation=True,
-            max_length=512,
+            max_length=512
         )
         tokenized["labels"] = tokenized["input_ids"].copy()
         return tokenized
