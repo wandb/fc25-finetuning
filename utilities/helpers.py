@@ -130,7 +130,7 @@ def select_model():
         print("Invalid choice. Please select 1 or 2.")
 
 
-def download_model(entity, project, model_name, version):
+def download_model(entity, project, model_name, version, run_id):
     """
     Downloads a specific model from W&B given its name and version.
     """
@@ -140,7 +140,7 @@ def download_model(entity, project, model_name, version):
         entity=entity,
         project=project,
         job_type="model_retrieval",
-        name=f"fetch_{model_name}_model"
+        id=run_id
     )
 
     artifact = run.use_artifact(
@@ -159,12 +159,12 @@ def download_model(entity, project, model_name, version):
     print(f"✅ Model saved to: {local_path}")
     print(f"✅ Model downloaded successfully!")
 
-def get_model_from_wandb(entity, project):
+def get_model_from_wandb(entity, project, run_id):
     """
     Select and download one model from W&B, then load it.
     """
     model_name, version = select_model()
-    download_model(entity, project, model_name, version)
+    download_model(entity, project, model_name, version, run_id)
     return model_name, version
 
 
