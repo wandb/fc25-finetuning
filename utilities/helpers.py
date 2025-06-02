@@ -308,20 +308,10 @@ def load_finetuned_model(adapter_dir, base_model_dir):
 
     tokenizer = AutoTokenizer.from_pretrained(adapter_dir, use_fast=True)
 
-    # Load base model
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-    )
-
     # Load model with quantization
     print("Loading model with 4-bit quantization...")
     base_model = AutoModelForCausalLM.from_pretrained(
         Path(base_model_dir),
-        quantization_config=bnb_config,
         device_map="auto",
         )
     # Load fine-tuned adapter
@@ -339,4 +329,92 @@ def bedrock_access():
     os.environ["AWS_SESSION_TOKEN"] = credentials.token  # Important for temp credentials!
     os.environ["AWS_REGION"] = session.region_name or "us-west-2"
     
-    print("✅ AWS credentials and region set in environment variables.")
+    print("✅ AWS credentials and region set in environment variables.")    
+
+def create_sagemaker_endpoint():
+    import sagemaker
+    import boto3
+    from sagemaker import get_execution_role
+    from pathlib import Path
+    import os
+    from sagemaker.s3 import S3Uploader
+    from sagemaker.huggingface import get_huggingface_llm_image_uri
+    import json
+    from sagemaker.huggingface import HuggingFaceModel
+    import subprocess
+    
+    boto_session = bedrock_access()
+    
+    sess = sagemaker.Session(boto_session=boto_session)
+    # sagemaker session bucket -> used for uploading data, models and logs
+    # sagemaker will automatically create this bucket if it not exists
+    sagemaker_session_bucket=None
+    if sagemaker_session_bucket is None and sess is not None:
+        # set to default bucket if a bucket name is not given
+        sagemaker_session_bucket = sess.default_bucket()
+    
+    sess = sagemaker.Session(default_bucket=sagemaker_session_bucket, boto_session=boto_session)
+    print(f"sagemaker session region: {sess.boto_region_name}")
+
+    cmd = [
+        "tar",
+        "-cf", "model.tar.gz",
+        "--use-compress-program=pigz",
+        "-C", "merged_model_llama",
+        "."
+    ]
+    subprocess.run(cmd, check=True)
+    
+    # upload model.tar.gz to s3
+    s3_model_uri = S3Uploader.upload(local_path=str(Path("model.tar.gz")), desired_s3_uri=f"s3://{sess.default_bucket()}/ft-model", sagemaker_session=sess)
+     
+    print(f"model uploaded to: {s3_model_uri}")
+     
+    # retrieve the llm image uri
+    llm_image = get_huggingface_llm_image_uri(
+        backend="huggingface", 
+        region=sess.boto_region_name
+    )
+     
+    # print ecr image uri
+    print(f"llm image uri: {llm_image}")
+     
+    # sagemaker config
+    instance_type = "ml.g5.xlarge"
+    number_of_gpu = 1
+    health_check_timeout = 300
+    
+    role = get_execution_role()
+    
+    boto3.client("iam").attach_role_policy(
+        RoleName=role.split("role/")[1],
+        PolicyArn="arn:aws:iam::aws:policy/AdministratorAccess"
+    )
+     
+    # create HuggingFaceModel
+    llm_model = HuggingFaceModel(
+        role = get_execution_role(),
+        image_uri=llm_image,
+        model_data=s3_model_uri,
+        transformers_version="4.52.4",
+        pytorch_version="2.6.0",
+        py_version="py310",
+        env={
+          'HF_MODEL_ID': "/opt/ml/model", # path to where sagemaker stores the model
+          'SM_NUM_GPUS': json.dumps(number_of_gpu), # Number of GPU used per replica
+          'MAX_INPUT_LENGTH': json.dumps(512), # Max length of input text
+          'MAX_TOTAL_TOKENS': json.dumps(2048), # Max length of the generation (including input text)
+          'MAX_BATCH_TOTAL_TOKENS': json.dumps(8192),
+        },
+    )
+    
+    # Deploy model to an endpoint
+    # https://sagemaker.readthedocs.io/en/stable/api/inference/model.html#sagemaker.model.Model.deploy
+    llm = llm_model.deploy(
+      initial_instance_count=1,
+      instance_type=instance_type,
+      # volume_size=400, # If using an instance with local SSD storage, volume_size must be None, e.g. p4 but not p3
+      container_startup_health_check_timeout=health_check_timeout, # 10 minutes to be able to load the model
+    )
+    
+    print(f"Deployment completed. \n This is your endpoint name! Submit this on the quest page to get points\n {llm.endpoint_name}")
