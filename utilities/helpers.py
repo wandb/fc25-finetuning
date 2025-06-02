@@ -418,3 +418,4 @@ def create_sagemaker_endpoint():
     )
     
     print(f"Deployment completed. \n This is your endpoint name! Submit this on the quest page to get points\n {llm.endpoint_name}")
+    return llm
