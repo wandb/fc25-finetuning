@@ -7,6 +7,14 @@ import torch
 import boto3
 import os
 
+import sagemaker
+from sagemaker import get_execution_role
+from pathlib import Path
+from sagemaker.s3 import S3Uploader
+from sagemaker.huggingface import get_huggingface_llm_image_uri
+from sagemaker.huggingface import HuggingFaceModel
+import subprocess
+
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
@@ -332,16 +340,6 @@ def bedrock_access():
     print("✅ AWS credentials and region set in environment variables.")    
 
 def create_sagemaker_endpoint():
-    import sagemaker
-    import boto3
-    from sagemaker import get_execution_role
-    from pathlib import Path
-    import os
-    from sagemaker.s3 import S3Uploader
-    from sagemaker.huggingface import get_huggingface_llm_image_uri
-    import json
-    from sagemaker.huggingface import HuggingFaceModel
-    import subprocess
     
     boto_session = bedrock_access()
     
@@ -355,15 +353,16 @@ def create_sagemaker_endpoint():
     
     sess = sagemaker.Session(default_bucket=sagemaker_session_bucket, boto_session=boto_session)
     print(f"sagemaker session region: {sess.boto_region_name}")
-
+    
+    # use pigz for faster and parallel compression
     cmd = [
         "tar",
         "-cf", "model.tar.gz",
         "--use-compress-program=pigz",
         "-C", "merged_model_llama",
-        "."
-    ]
+        "."]
     subprocess.run(cmd, check=True)
+
     
     # upload model.tar.gz to s3
     s3_model_uri = S3Uploader.upload(local_path=str(Path("model.tar.gz")), desired_s3_uri=f"s3://{sess.default_bucket()}/ft-model", sagemaker_session=sess)
@@ -416,6 +415,8 @@ def create_sagemaker_endpoint():
       # volume_size=400, # If using an instance with local SSD storage, volume_size must be None, e.g. p4 but not p3
       container_startup_health_check_timeout=health_check_timeout, # 10 minutes to be able to load the model
     )
+    
+    llm.endpoint_name
     
     print(f"Deployment completed. \n This is your endpoint name! Submit this on the quest page to get points\n {llm.endpoint_name}")
     return llm
