@@ -384,11 +384,12 @@ def create_sagemaker_endpoint():
     health_check_timeout = 300
     
     role = get_execution_role()
-    
-    boto3.client("iam").attach_role_policy(
-        RoleName=role.split("role/")[1],
-        PolicyArn="arn:aws:iam::aws:policy/AdministratorAccess"
-    )
+
+    # We'll add this as part of the cloud formation stuff    
+    # boto3.client("iam").attach_role_policy(
+    #     RoleName=role.split("role/")[1],
+    #     PolicyArn="arn:aws:iam::aws:policy/AdministratorAccess"
+    # )
      
     # create HuggingFaceModel
     llm_model = HuggingFaceModel(
