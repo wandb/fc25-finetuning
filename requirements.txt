@@ -10,3 +10,5 @@ peft
 torchvision 
 pandas 
 numpy
+weave
+weave[scorers]
