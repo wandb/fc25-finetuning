@@ -1,0 +1,12 @@
+transformers 
+datasets 
+accelerate 
+wandb 
+trl 
+huggingface_hub 
+hf-transfer 
+bitsandbytes 
+peft 
+torchvision 
+pandas 
+numpy
